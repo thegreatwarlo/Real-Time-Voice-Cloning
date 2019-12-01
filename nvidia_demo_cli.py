@@ -2,7 +2,6 @@ from encoder.params_model import model_embedding_size as speaker_embedding_size
 from utils.argutils import print_args
 from synthesizer.inference import Synthesizer
 from encoder import inference as encoder
-from vocoder import inference as vocoder
 from pathlib import Path
 import numpy as np
 import librosa
@@ -64,7 +63,7 @@ def clone_voice(in_fpath_1, in_fpath_2, encoder, synthesizer, num_generated, wav
                 spec = spec.unsqueeze(0)
                 audio = waveglow.infer(spec)
             audio_numpy = audio[0].data.cpu().numpy()
-            rate = 22050
+            rate = 16000
             
             fpath = "demo_output_%02d.wav" % num_generated
             write(fpath, rate, audio_numpy)
