@@ -10,7 +10,7 @@ import argparse
 import torch
 import sys
 import speech_recognition
-
+import time
 
 def clone_voice(in_fpath_1, in_fpath_2, encoder, synthesizer, vocoder, num_generated):
             ## Computing the embedding
@@ -19,12 +19,15 @@ def clone_voice(in_fpath_1, in_fpath_2, encoder, synthesizer, vocoder, num_gener
             
             # The following two methods are equivalent:
             # - Directly load from the filepath:
+            start_time = time.time()
             preprocessed_wav = encoder.preprocess_wav(Path(in_fpath_1))
             # - If the wav is already loaded:
             original_wav, sampling_rate = librosa.load(Path(in_fpath_1))
                 
             preprocessed_wav = encoder.preprocess_wav(original_wav, sampling_rate)
-            print("Loaded file succesfully")
+            
+            d = round(time.time() - start_time, 4)
+            print(f"Loaded file and preprocessed succesfully in {d} seconds")
             
             # Play the audio (non-blocking)
             if num_generated == 0 and not args.no_sound:
@@ -34,11 +37,15 @@ def clone_voice(in_fpath_1, in_fpath_2, encoder, synthesizer, vocoder, num_gener
             
             # Then we derive the embedding. There are many functions and parameters that the 
             # speaker encoder interfaces. These are mostly for in-depth research. You will typically
+            start_time = time.time()
             # only use this function (with its default parameters):
             embed = encoder.embed_utterance(preprocessed_wav)
-            print("Created the embedding")
+            
+            d = round(time.time() - start_time, 4)
+            print(f"Created the embedding in {d} seconds")
             
             ##Generating text from other speaker's speech
+            start_time = time.time()
             recognizer = speech_recognition.Recognizer()
             
             with speech_recognition.AudioFile(in_fpath_2) as source:
@@ -52,22 +59,30 @@ def clone_voice(in_fpath_1, in_fpath_2, encoder, synthesizer, vocoder, num_gener
             
             ## Generating the spectrogram
             #text = input("Write a sentence (+-20 words) to be synthesized:\n")
+            start_time = time.time()
             text = recognizer.recognize_google(audio)
+            d = round(time.time() - start_time, 4)
+            print(f"Extracted text from speech in {d} seconds")
             # The synthesizer works in batch, so you need to put your data in a list or numpy array
             texts = [text]
             embeds = [embed]
             # If you know what the attention layer alignments are, you can retrieve them here by
             # passing return_alignments=True
+            start_time = time.time()
             specs = synthesizer.synthesize_spectrograms(texts, embeds)
             spec = specs[0]
-            print("Created the mel spectrogram")
+            d = round(time.time() - start_time, 4)
+            print(f"Created the mel spectrogram in {d} seconds")
             
             
             ## Generating the waveform
             print("Synthesizing the waveform:")
             # Synthesizing the waveform is fairly straightforward. Remember that the longer the
             # spectrogram, the more time-efficient the vocoder.
+            start_time = time.time()
             generated_wav = vocoder.infer_waveform(spec)
+            d = round(time.time() - start_time, 4)
+            print(f"\nGenerated the waveform in {d} seconds")
             
             
             ## Post-generation
@@ -192,26 +207,29 @@ if __name__ == '__main__':
     
     print("Interactive generation loop")
     num_generated = 0
-    while True:
-        try:
-            # Get the reference audio filepath
-            message = "Reference voice: enter an audio filepath of first voice to be swapped  (mp3, " \
-                      "wav, m4a, flac, ...):\n"
+    # Get the reference audio filepath
+    message = "Reference voice: enter an audio filepath of first voice to be swapped  (mp3, " \
+              "wav, m4a, flac, ...):\n"
+    
+    in_fpath_1 = input(message).replace("\"", "").replace("\'", "")
+    
+    message = "Reference voice: enter an audio filepath of second voice to be swapped  (mp3, " \
+              "wav, m4a, flac, ...):\n"
+    
+    in_fpath_2 = input(message).replace("\"", "").replace("\'", "")
+    
+    #first speaker's voice, second speaker's words
+    start_time = time.time()
+    clone_voice(in_fpath_1, in_fpath_2, encoder, synthesizer, vocoder, num_generated)
+    duration = round(time.time() - start_time, 4)
+    print(f"first speaker's voice applied to second speaker's words in {duration} seconds")
+    num_generated += 1
+    
+    
+    start_time = time.time()
+    clone_voice(in_fpath_2, in_fpath_1, encoder, synthesizer, vocoder, num_generated)
+    duration = round(time.time() - start_time, 4)
+    print(f"second speaker's voice applied to first speaker's words in {duration} seconds")
+    num_generated += 1
             
-            in_fpath_1 = input(message).replace("\"", "").replace("\'", "")
             
-            message = "Reference voice: enter an audio filepath of second voice to be swapped  (mp3, " \
-                      "wav, m4a, flac, ...):\n"
-            
-            in_fpath_2 = input(message).replace("\"", "").replace("\'", "")
-            
-            clone_voice(in_fpath_1, in_fpath_2, encoder, synthesizer, vocoder, num_generated)
-            num_generated += 1
-            clone_voice(in_fpath_2, in_fpath_1, encoder, synthesizer, vocoder, num_generated)
-            num_generated += 1
-            
-            break
-        except Exception as e:
-            print("Caught exception: %s" % repr(e))
-            print("Restarting\n")
-        
